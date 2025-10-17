@@ -409,7 +409,7 @@ def view_app():
                     # ✅ Recuperar el año objetivo desde el input o desde sesión
                     year_value = st.session_state.get("init_year")
                     if not year_value:
-                        year_value = datetime.now().year  # fallback por si algo falla
+                        year_value = datetime.now().year  # fallback
 
                     payload = {
                         "rfc": rfc_sel,
@@ -418,19 +418,29 @@ def view_app():
 
                     try:
                         with st.spinner(f"Verificando solicitudes del año {year_value} para {rfc_sel}..."):
-                            # 👇 Enviar como form-data, igual que en Postman
                             v = requests.post(
                                 "http://sat-api-alb-532045601.us-east-1.elb.amazonaws.com/verificar-solicitudes/",
-                                data=payload,
+                                data=payload,  # 👈 Enviar como form-data
                                 timeout=(10, 600)
                             )
 
                             v_data = v.json() if v.headers.get("content-type", "").startswith("application/json") else {"raw": v.text}
 
+                            # --- Manejo de errores ---
                             if v.status_code >= 400:
-                                st.error("Error al verificar solicitudes")
-                                st.json(v_data, expanded=False)
+                                raw_text = v.text.strip() if hasattr(v, "text") else ""
+                                if "Internal Server Error" in raw_text:
+                                    st.warning(
+                                        f"⚠️ No se encontraron solicitudes para el año {year_value}. "
+                                        "Esto suele ocurrir cuando todavía no se han generado solicitudes de ese año "
+                                        "o la carpeta correspondiente no existe en el almacenamiento."
+                                    )
+                                else:
+                                    st.error("Error al verificar solicitudes")
+                                    st.json(v_data, expanded=False)
+
                             else:
+                                # --- Procesar respuesta exitosa ---
                                 items = []
                                 if isinstance(v_data, dict):
                                     if isinstance(v_data.get("detalle"), list):
@@ -451,20 +461,31 @@ def view_app():
                                         estado = it.get("estado") or it.get("status") or it.get("EstadoSolicitud")
                                         estados.append(str(estado))
                                         paquetes = it.get("paquetes") or it.get("ids_paquetes") or it.get("IdsPaquetes")
-                                        npaq = len(paquetes) if isinstance(paquetes, (list, tuple)) else (paquetes if isinstance(paquetes, int) else None)
-                                        periodo = it.get("periodo") or (f'{it.get("fecha_inicio","")} → {it.get("fecha_fin","")}' if it.get("fecha_inicio") or it.get("fecha_fin") else None)
+                                        npaq = len(paquetes) if isinstance(paquetes, (list, tuple)) else (
+                                            paquetes if isinstance(paquetes, int) else None
+                                        )
+                                        periodo = (
+                                            it.get("periodo")
+                                            or (
+                                                f'{it.get("fecha_inicio","")} → {it.get("fecha_fin","")}'
+                                                if it.get("fecha_inicio") or it.get("fecha_fin")
+                                                else None
+                                            )
+                                        )
                                         line = f"**{idx}.** `{idsol or '—'}` • Estado: **{estado}**"
                                         if npaq is not None:
                                             line += f" • Paquetes: **{npaq}**"
                                         if periodo:
                                             line += f" • {periodo}"
                                         box.markdown(line)
+
                                     counts = Counter(estados)
                                     st.markdown("---")
                                     st.write({"total": len(items), "por_estado": dict(counts)})
 
                     except requests.exceptions.RequestException as e:
                         st.error(f"Fallo al verificar solicitudes: {e}")
+
 
 
             with tab2:
