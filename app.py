@@ -622,7 +622,7 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                     key_file = st.file_uploader("Archivo .key", type=["key"], key="key_up_cli")
                     pass_file = st.file_uploader("Archivo password.txt", type=["txt","TXT"], key="pass_up_cli")
                     can_submit = all([uploader_name, rfc, cer_file is not None, key_file is not None, pass_file is not None])
-                    submitted = st.form_submit_button("Subir certificados", disabled=not can_submit)
+                    submitted = st.form_submit_button("Subir certificados")
                 if submitted:
                     try:
                         files = {
