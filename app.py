@@ -526,30 +526,69 @@ def view_app():
         with col_manage:
             grupos = list_groups(db)
             if grupos:
-                sel_idx = st.selectbox("Selecciona grupo", list(range(len(grupos))), format_func=lambda i: grupos[i]["nombre"])
+                sel_idx = st.selectbox(
+                    "Selecciona grupo",
+                    list(range(len(grupos))),
+                    format_func=lambda i: grupos[i]["nombre"]
+                )
                 gid = str(grupos[sel_idx]["_id"])
-                miembros = list(db.clientes.find({"grupo_id": ObjectId(gid)}, {"rfc": 1, "razon_social": 1}).sort("rfc", ASCENDING))
+
+                # Mostrar miembros actuales
+                miembros = list(
+                    db.clientes.find({"grupo_id": ObjectId(gid)}, {"rfc": 1, "razon_social": 1}).sort("rfc", ASCENDING)
+                )
+
                 if miembros:
-                    st.subheader("Miembros")
-                    st.dataframe([{"rfc": m.get("rfc"), "razon_social": m.get("razon_social")} for m in miembros], use_container_width=True, hide_index=True)
+                    st.subheader("Miembros actuales")
+                    st.dataframe(
+                        [{"RFC": m.get("rfc"), "Razón social": m.get("razon_social")} for m in miembros],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    # Nueva sección: quitar cliente del grupo
+                    st.markdown("### Quitar cliente del grupo")
+                    member_labels = [f'{m.get("rfc")} — {m.get("razon_social") or ""}' for m in miembros]
+                    member_ids = [str(m["_id"]) for m in miembros]
+
+                    sel_remove = st.selectbox(
+                        "Selecciona cliente para quitar",
+                        options=list(range(len(member_ids))),
+                        format_func=lambda i: member_labels[i],
+                        key=f"remove_select_{gid}"
+                    )
+
+                    if st.button("Quitar del grupo", type="secondary", key=f"remove_btn_{gid}"):
+                        ok = remove_client_from_group(db, member_ids[sel_remove], gid)
+                        if ok:
+                            st.success("Cliente eliminado del grupo")
+                            st.rerun()
                 else:
                     st.info("Este grupo no tiene miembros.")
+
+                # Agregar nuevos clientes al grupo
                 candidatos = clients_without_group(db)
                 if candidatos:
                     labels = [f'{c.get("rfc")} — {c.get("razon_social") or ""}'.strip() for c in candidatos]
                     ids = [str(c["_id"]) for c in candidatos]
-                    pick = st.multiselect("Agregar clientes al grupo", options=list(range(len(ids))), format_func=lambda i: labels[i])
-                    if st.button("Agregar al grupo", disabled=(len(pick) == 0)):
+                    pick = st.multiselect(
+                        "Agregar clientes al grupo",
+                        options=list(range(len(ids))),
+                        format_func=lambda i: labels[i]
+                    )
+                    if st.button("Agregar al grupo", disabled=(len(pick) == 0), key=f"add_btn_{gid}"):
                         added = add_clients_to_group(db, gid, [ids[i] for i in pick])
                         st.success(f"Agregados: {added}")
                         st.rerun()
+
                 st.markdown("---")
-                if st.button("Eliminar grupo", type="secondary"):
+                if st.button("Eliminar grupo", type="secondary", key=f"delete_group_{gid}"):
                     delete_group(db, gid)
                     st.success("Grupo eliminado")
                     st.rerun()
             else:
                 st.info("Aún no hay grupos.")
+
 
     if st.session_state.ui_section == "Usuarios" and st.session_state.role == "admin":
         st.title("Usuarios")
