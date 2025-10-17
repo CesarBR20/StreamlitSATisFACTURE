@@ -4,7 +4,7 @@ import requests
 import streamlit as st
 from pymongo import MongoClient, ASCENDING
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timezone
 
 st.set_page_config(page_title="SATisFacture", layout="wide")
 
@@ -222,6 +222,15 @@ def view_landing():
 def view_app():
     db = get_db()
     ensure_group_indexes(db)
+    if (
+        "confirmed_client_rfc" not in st.session_state
+        or not st.session_state.get("confirmed_client_rfc")
+    ) and st.session_state.confirmed_client_id:
+        cli_doc = db.clientes.find_one(
+            {"_id": ObjectId(st.session_state.confirmed_client_id)}, {"rfc": 1}
+        )
+        if cli_doc:
+            st.session_state.confirmed_client_rfc = cli_doc.get("rfc")
     if st.session_state.role == "cliente":
         st.session_state.ui_section = "Alta de cliente"
     if not st.session_state.auth:
@@ -271,11 +280,22 @@ def view_app():
                 else:
                     st.selectbox("Cliente", options=[0], format_func=lambda _: "— Selecciona cliente —", key="filter_member_idx")
                     st.session_state.selected_client_id = None
-                if st.button("Seleccionar"):
+                if st.button("Seleccionar", key="btn_select_client"):
                     if st.session_state.clients_loaded and st.session_state.selected_client_id:
                         st.session_state.confirmed_client_id = st.session_state.selected_client_id
                         st.session_state.confirmed_group_id = g_ids[g_idx]
+
+                        # ✅ Guardar el RFC seleccionado en sesión
+                        cli_doc = db.clientes.find_one(
+                            {"_id": ObjectId(st.session_state.selected_client_id)}, {"rfc": 1}
+                        )
+                        if cli_doc and cli_doc.get("rfc"):
+                            st.session_state.confirmed_client_rfc = cli_doc.get("rfc")
+                        else:
+                            st.session_state.confirmed_client_rfc = None
+
                         st.rerun()
+
             else:
                 cli = db.clientes.find_one({"_id": ObjectId(st.session_state.confirmed_client_id)}, {"rfc": 1, "razon_social": 1})
                 title_cli = f'{cli.get("rfc")} — {cli.get("razon_social") or ""}' if cli else "Cliente seleccionado"
@@ -293,61 +313,120 @@ def view_app():
             st.caption(f"Rol: {st.session_state.role} | Usuario: {st.session_state.username}")
             st.button("Cerrar sesión", on_click=go_to_landing)
 
+    # --- Contenido principal cuando hay cliente confirmado ---
     if st.session_state.role == "admin" and st.session_state.confirmed_client_id:
+        # 🔹 Recuperamos el RFC desde sesión para todos los requests
+        rfc_sel = st.session_state.get("confirmed_client_rfc")
+        if not rfc_sel:
+            st.warning("Selecciona primero un cliente antes de continuar.")
+            st.stop()
+
         doc_cli = db.clientes.find_one({"_id": ObjectId(st.session_state.confirmed_client_id)}, {"rfc": 1, "razon_social": 1})
-        if doc_cli:
-            rfc_sel = doc_cli.get("rfc")
-            razon_sel = doc_cli.get("razon_social") or ""
+        razon_sel = doc_cli.get("razon_social") or ""
+        st.markdown("---")
+        st.subheader(f"Cliente seleccionado: {rfc_sel} — {razon_sel}")
+
+        tab1, tab2 = st.tabs(["Solicitudes iniciales", "Visualización"])
+
+        with tab1:
+            year = st.number_input(
+                "Año objetivo",
+                min_value=2000,
+                max_value=2100,
+                value=datetime.utcnow().year,
+                step=1,
+                key="init_year"
+            )
+
+            # --- Ejecutar solicitudes iniciales ---
+            if st.button("Ejecutar solicitudes iniciales", use_container_width=True, key="btn_ejecutar_iniciales"):
+                payload = {"rfc": rfc_sel, "year": int(year)}
+                try:
+                    resp = requests.post(
+                        "http://sat-api-alb-532045601.us-east-1.elb.amazonaws.com/ejecutar-solicitudes-iniciales/",
+                        json=payload,
+                        timeout=(10, 3000)
+                    )
+                    if resp.status_code >= 400:
+                        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"raw": resp.text}
+                        st.error("Error al ejecutar solicitudes")
+                        st.json(data, expanded=False)
+                    else:
+                        st.success("Solicitudes enviadas correctamente ✅")
+                except requests.exceptions.RequestException as e:
+                    st.error(f"Fallo al llamar al backend: {e}")
+
             st.markdown("---")
-            st.subheader(f"Cliente seleccionado: {rfc_sel} — {razon_sel}")
-            tab1, tab2 = st.tabs(["Solicitudes iniciales", "Visualización"])
-            with tab1:
-                year = st.number_input("Año objetivo", min_value=2000, max_value=2100, value=datetime.utcnow().year, step=1, key="init_year")
+            st.subheader("Verificación")
 
-                if st.button("Ejecutar solicitudes iniciales", use_container_width=True, key="btn_ejecutar_iniciales"):
-                    payload = {"rfc": rfc_sel, "year": int(year)}
+            # --- Estado de autenticación ---
+            if "sat_token_ready" not in st.session_state:
+                st.session_state.sat_token_ready = False
+
+            col1, col2 = st.columns(2)
+
+            # 🔑 Botón 1: Autenticar con SAT
+            with col1:
+                if st.button("Autenticar con SAT", use_container_width=True, key="btn_auth_sat"):
+                    rfc_sel = st.session_state.get("confirmed_client_rfc")
+                    if not rfc_sel:
+                        st.warning("Selecciona primero un cliente antes de continuar.")
+                        st.stop()
+
                     try:
-                        resp = requests.post(
-                            "http://sat-api-alb-532045601.us-east-1.elb.amazonaws.com/ejecutar-solicitudes-iniciales/",
-                            json=payload,
-                            timeout=(10, 3000)
-                        )
-                        if resp.status_code >= 400:
-                            data = resp.json() if resp.headers.get("content-type","").startswith("application/json") else {"raw": resp.text}
-                            st.error("Error al ejecutar solicitudes")
-                            st.json(data, expanded=False)
-                        else:
-                            st.success("Solicitudes enviadas")
-                    except requests.exceptions.RequestException as e:
-                        st.error(f"Fallo al llamar al backend: {e}")
-
-                st.markdown("---")
-                st.subheader("Verificación")
-
-                if st.button("Autenticar y verificar", use_container_width=True, key="btn_auth_verify"):
-                    try:
-                        with st.spinner("Autenticando con SAT…"):
+                        with st.spinner(f"Autenticando con SAT para RFC {rfc_sel}..."):
+                            # 👇 Enviar como form-data, NO como JSON
                             a = requests.post(
                                 "http://sat-api-alb-532045601.us-east-1.elb.amazonaws.com/auth-sat/",
-                                json={"rfc": rfc_sel},
+                                data={"rfc": rfc_sel},
                                 timeout=(10, 120)
                             )
-                            a_data = a.json() if a.headers.get("content-type","").startswith("application/json") else {"raw": a.text}
+
+                            a_data = a.json() if a.headers.get("content-type", "").startswith("application/json") else {"raw": a.text}
+
                             if a.status_code >= 400:
                                 st.error("Error al autenticar contra SAT")
                                 st.json(a_data, expanded=False)
-                                st.stop()
+                                st.session_state.sat_token_ready = False
                             else:
-                                st.success("Token SAT generado")
+                                st.session_state.sat_token_ready = True
+                                st.success(f"✅ Autenticación con SAT completada correctamente para RFC **{rfc_sel}**")
+                    except requests.exceptions.RequestException as e:
+                        st.error(f"Fallo al autenticar con SAT: {e}")
+                        st.session_state.sat_token_ready = False
 
-                        with st.spinner("Verificando solicitudes…"):
-                            payload = {"rfc": rfc_sel, "year": int(year)}
+
+            # 🔍 Botón 2: Verificar solicitudes
+            with col2:
+                disabled = not st.session_state.sat_token_ready
+                if st.button("Verificar solicitudes", use_container_width=True, disabled=disabled, key="btn_verify_sat"):
+                    rfc_sel = st.session_state.get("confirmed_client_rfc")
+
+                    if not rfc_sel:
+                        st.warning("Selecciona primero un cliente antes de continuar.")
+                        st.stop()
+
+                    # ✅ Recuperar el año objetivo desde el input o desde sesión
+                    year_value = st.session_state.get("init_year")
+                    if not year_value:
+                        year_value = datetime.now().year  # fallback por si algo falla
+
+                    payload = {
+                        "rfc": rfc_sel,
+                        "year": int(year_value)
+                    }
+
+                    try:
+                        with st.spinner(f"Verificando solicitudes del año {year_value} para {rfc_sel}..."):
+                            # 👇 Enviar como form-data, igual que en Postman
                             v = requests.post(
                                 "http://sat-api-alb-532045601.us-east-1.elb.amazonaws.com/verificar-solicitudes/",
-                                json=payload,
+                                data=payload,
                                 timeout=(10, 600)
                             )
-                            v_data = v.json() if v.headers.get("content-type","").startswith("application/json") else {"raw": v.text}
+
+                            v_data = v.json() if v.headers.get("content-type", "").startswith("application/json") else {"raw": v.text}
+
                             if v.status_code >= 400:
                                 st.error("Error al verificar solicitudes")
                                 st.json(v_data, expanded=False)
@@ -385,7 +464,7 @@ def view_app():
                                     st.write({"total": len(items), "por_estado": dict(counts)})
 
                     except requests.exceptions.RequestException as e:
-                        st.error(f"Fallo al llamar al backend: {e}")
+                        st.error(f"Fallo al verificar solicitudes: {e}")
 
 
             with tab2:
