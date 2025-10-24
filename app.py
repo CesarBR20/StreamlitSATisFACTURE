@@ -823,15 +823,25 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                     razon = st.text_input("Nombre / Razón social de la empresa (opcional)").strip()
                     cer_file = st.file_uploader("Archivo .cer", type=["cer"], key="cer_up_cli")
                     key_file = st.file_uploader("Archivo .key", type=["key"], key="key_up_cli")
-                    pass_file = st.file_uploader("Archivo password.txt", type=["txt","TXT"], key="pass_up_cli")
-                    can_submit = all([uploader_name, rfc, cer_file is not None, key_file is not None, pass_file is not None])
+                    pass_file = st.file_uploader("Archivo password.txt", type=["txt"], key="pass_up_cli")
+
                     submitted = st.form_submit_button("Subir certificados")
-                    
-                    
+
                 if submitted:
-                    if not rfc:
-                        st.error("Falta el RFC")
+                    # ✅ Validaciones después del submit
+                    if not uploader_name or not rfc:
+                        st.error("Faltan el nombre o el RFC")
                         st.stop()
+                    
+                    if not cer_file or not key_file or not pass_file:
+                        st.error("Faltan archivos (.cer, .key o password.txt)")
+                        st.stop()
+                    
+                    # Validar nombre del archivo password
+                    if pass_file.name.strip().lower() != "password.txt":
+                        st.error(f"El archivo debe llamarse exactamente **password.txt** (actualmente: {pass_file.name})")
+                        st.stop()
+                    
                     if rfc in rfc_subidos:
                         st.error(f"El RFC **{rfc}** ya ha sido registrado previamente.")
                         st.stop()
@@ -840,7 +850,7 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                         files = {
                             "cer_file": (cer_file.name, cer_file.read(), "application/octet-stream"),
                             "key_file": (key_file.name, key_file.read(), "application/octet-stream"),
-                            "password_file": (pass_file.name, pass_file.read(), "text/plain"),
+                            "password_file": ("password.txt", pass_file.read(), "text/plain"),
                         }
                         data = {"rfc": rfc}
                         resp = requests.post(API_CONVERT, files=files, data=data, timeout=120)
@@ -857,7 +867,6 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                                     updates["grupo_id"] = ObjectId(gid)
                                 db.clientes.update_one({"_id": doc["_id"]}, {"$set": updates})
                             st.success("Certificados subidos")
-                            
                             
                             db.uploads.insert_one({
                                 "rfc": rfc,
