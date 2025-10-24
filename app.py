@@ -193,7 +193,6 @@ def go_to_landing():
     st.session_state.consent_confirmed = False
     st.session_state.pop("consent_cb1", None)
     st.session_state.pop("consent_cb2", None)
-    st.rerun()
 
 def view_landing():
     db = get_db()
@@ -732,23 +731,68 @@ def view_app():
             else:
                 gdoc = db.grupos.find_one({"_id": ObjectId(gid)}, {"nombre": 1})
                 gname = gdoc["nombre"] if gdoc else "(grupo)"
-                
+
+                # --- 🔹 Mostrar tabla de certificados subidos por el grupo ---
+                st.markdown(f"### Certificados subidos para el grupo **{gname}**")
+
+                group_uploads = list(
+                    db.uploads.find(
+                        {"group_id": ObjectId(gid), "consent_registered": True},
+                        {"rfc": 1, "uploader_name": 1, "uploader_username": 1, "created_at": 1}
+                    ).sort("created_at", -1)
+                )
+
+                if group_uploads:
+                    rows = []
+                    for up in group_uploads:
+                        fecha = up.get("created_at")
+                        fecha_str = fecha.strftime("%d/%m/%Y %H:%M:%S") if fecha else ""
+                        # Obtener razón social (si existe)
+                        cli_doc = db.clientes.find_one({"rfc": up.get("rfc")}, {"razon_social": 1})
+                        razon_social = cli_doc.get("razon_social") if cli_doc else "—"
+
+                        rows.append({
+                            "RFC": up.get("rfc", "Sin RFC"),
+                            "Razón social": razon_social,
+                            "Subido por": up.get("uploader_name") or up.get("uploader_username"),
+                            "Fecha de subida": fecha_str
+                        })
+                    st.dataframe(rows, use_container_width=True, hide_index=True)
+                else:
+                    st.info(f"No hay certificados subidos para este grupo **{gname}**.")
+
+                # --- 🔹 Flujo de subida ---
                 existing_upload = db.uploads.find_one({
                     "uploader_username": st.session_state.username,
                     "group_id": ObjectId(gid),
                     "consent_registered": True
                 })
-                
-                if existing_upload:
-                    st.success("Ya has subido certificados previamente.")
-                    st.info(f"**RFC registrado:** {existing_upload.get('rfc', 'N/A')}")
-                    fecha = existing_upload.get("created_at")
-                    if fecha:
-                        st.info(f"**Fecha de registro:** {fecha.strftime('%d/%m/%Y %H:%M')}")
-                    st.warning("Si necesitas actualizar los certificados, contacta con el administrador.")
+
+                uploads_user = list(
+                    db.uploads.find(
+                        {"uploader_username": st.session_state.username, "consent_registered": True},
+                        {"rfc": 1, "created_at": 1}
+                    )
+                )
+
+                rfc_subidos = [u.get("rfc") for u in uploads_user if u.get("rfc")]
+
+                if rfc_subidos and "subiendo_nuevo" not in st.session_state:
+                    st.warning("Puedes subir nuevos certificados, pero no del mismo RFC.")
+                    for up in uploads_user:
+                        fecha = up.get("created_at")
+                        fecha_str = fecha.strftime("%d/%m/%Y %H:%M:%S") if fecha else ""
+
+                    if st.button("Subir otros certificados", type="secondary", use_container_width=True):
+                        for k in ["cer_up_cli", "key_up_cli", "pass_up_cli", "uploaded_fiel_done"]:
+                            st.session_state.pop(k, None)
+                        st.session_state.subiendo_nuevo = True
+                        st.rerun()
+
                     st.stop()
-                
-                if not st.session_state.consent_confirmed:
+
+
+                if not st.session_state.consent_confirmed and not st.session_state.get("subiendo_nuevo"):
                     st.subheader("Consentimiento previo")
                     notice = f"""
 ### Aviso de confidencialidad y consentimiento
@@ -769,6 +813,8 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                         st.rerun()
                     st.stop()
                     
+                if st.session_state.get("subiendo_nuevo"):
+                    st.info("Subiendo nuevo certificado para otro RFC.")
                     
                 with st.form("form_alta_cliente_cliente"):
                     st.text_input("Grupo", value=gname, disabled=True)
@@ -783,6 +829,13 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                     
                     
                 if submitted:
+                    if not rfc:
+                        st.error("Falta el RFC")
+                        st.stop()
+                    if rfc in rfc_subidos:
+                        st.error(f"El RFC **{rfc}** ya ha sido registrado previamente.")
+                        st.stop()
+                    
                     try:
                         files = {
                             "cer_file": (cer_file.name, cer_file.read(), "application/octet-stream"),
@@ -818,6 +871,7 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                             st.rerun()
                     except requests.exceptions.RequestException as e:
                         st.error(f"Fallo al llamar al backend: {e}")
+
         else:
             with st.form("form_alta_cliente_admin"):
                 rfc = st.text_input("RFC del cliente").strip().upper()
