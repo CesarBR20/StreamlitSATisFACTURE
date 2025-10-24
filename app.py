@@ -4,7 +4,9 @@ import requests
 import streamlit as st
 from pymongo import MongoClient, ASCENDING
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime
+import concurrent.futures
+import time
 
 st.set_page_config(page_title="SATisFacture", layout="wide")
 
@@ -340,20 +342,40 @@ def view_app():
             # --- Ejecutar solicitudes iniciales ---
             if st.button("Ejecutar solicitudes iniciales", use_container_width=True, key="btn_ejecutar_iniciales"):
                 payload = {"rfc": rfc_sel, "year": int(year)}
-                try:
-                    resp = requests.post(
-                        "http://sat-api-alb-532045601.us-east-1.elb.amazonaws.com/ejecutar-solicitudes-iniciales/",
-                        json=payload,
-                        timeout=(10, 3000)
-                    )
-                    if resp.status_code >= 400:
-                        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"raw": resp.text}
-                        st.error("Error al ejecutar solicitudes")
-                        st.json(data, expanded=False)
-                    else:
-                        st.success("Solicitudes enviadas correctamente ✅")
-                except requests.exceptions.RequestException as e:
-                    st.error(f"Fallo al llamar al backend: {e}")
+                
+                st.info("Enviando solicitudes al backend... Esto puede tardar alrededor de 10 minutos.")
+                
+                def run_long_request():
+                    try:
+                        resp = requests.post(
+                            "http://sat-api-alb-532045601.us-east-1.elb.amazonaws.com/ejecutar-solicitudes-iniciales/",
+                            data=payload,
+                            timeout=None 
+                        )
+                        ct = resp.headers.get("content-type", "")
+                        response_payload = (
+                            resp.json() if ct.startswith("application/json") else {"raw": resp.text}
+                        )
+                        return resp.status_code, response_payload
+                    except Exception as e:
+                        return 999, {"error": str(e)}
+                
+                # 🧵 Ejecutar sin bloquear la interfaz
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_long_request)
+                    with st.spinner("⏳ Ejecutando solicitudes iniciales... puede tardar varios minutos..."):
+                        while not future.done():
+                            time.sleep(2)
+                        status, data = future.result()
+                
+                if status == 999:
+                    st.error(f"Fallo al llamar al backend: {data.get('error')}")
+                elif status >= 400:
+                    st.error("Error al ejecutar solicitudes")
+                    st.json(data, expanded=False)
+                else:
+                    st.success("Solicitudes iniciales enviadas correctamente")
+                    st.json(data, expanded=False)
 
             st.markdown("---")
             st.subheader("Verificación")
@@ -420,7 +442,7 @@ def view_app():
                             v = requests.post(
                                 "http://sat-api-alb-532045601.us-east-1.elb.amazonaws.com/verificar-solicitudes/",
                                 data=payload,  # 👈 Enviar como form-data
-                                timeout=(10, 600)
+                                timeout=None
                             )
 
                             v_data = v.json() if v.headers.get("content-type", "").startswith("application/json") else {"raw": v.text}
