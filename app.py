@@ -785,26 +785,6 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                                 db.clientes.update_one({"_id": doc["_id"]}, {"$set": updates})
                             st.success("Certificados subidos")
                             doc = db.clientes.find_one({"rfc": rfc})
-                            st.json(
-                                {
-                                    "api": payload,
-                                    "consent": {
-                                        "accepted": True,
-                                        "uploader_username": st.session_state.username,
-                                        "uploader_name": uploader_name,
-                                        "group": gname,
-                                    },
-                                    "mongo": {
-                                        "found": bool(doc),
-                                        "cliente": {
-                                            "_id": str(doc["_id"]) if doc else None,
-                                            "rfc": (doc.get("rfc") if doc else rfc),
-                                            "razon_social": (doc.get("razon_social") if doc else (razon or None)),
-                                        },
-                                    },
-                                },
-                                expanded=False,
-                            )
                             db.uploads.insert_one({
                                 "rfc": rfc,
                                 "uploader_username": st.session_state.username,
