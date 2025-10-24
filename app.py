@@ -732,6 +732,22 @@ def view_app():
             else:
                 gdoc = db.grupos.find_one({"_id": ObjectId(gid)}, {"nombre": 1})
                 gname = gdoc["nombre"] if gdoc else "(grupo)"
+                
+                existing_upload = db.uploads.find_one({
+                    "uploader_username": st.session_state.username,
+                    "group_id": ObjectId(gid),
+                    "consent_registered": True
+                })
+                
+                if existing_upload:
+                    st.success("Ya has subido certificados previamente.")
+                    st.info(f"**RFC registrado:** {existing_upload.get('rfc', 'N/A')}")
+                    fecha = existing_upload.get("created_at")
+                    if fecha:
+                        st.info(f"**Fecha de registro:** {fecha.strftime('%d/%m/%Y %H:%M')}")
+                    st.warning("Si necesitas actualizar los certificados, contacta con el administrador.")
+                    st.stop()
+                
                 if not st.session_state.consent_confirmed:
                     st.subheader("Consentimiento previo")
                     notice = f"""
@@ -752,6 +768,8 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                         st.session_state.consent_confirmed = True
                         st.rerun()
                     st.stop()
+                    
+                    
                 with st.form("form_alta_cliente_cliente"):
                     st.text_input("Grupo", value=gname, disabled=True)
                     uploader_name = st.text_input("Tu nombre").strip()
@@ -762,6 +780,8 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                     pass_file = st.file_uploader("Archivo password.txt", type=["txt","TXT"], key="pass_up_cli")
                     can_submit = all([uploader_name, rfc, cer_file is not None, key_file is not None, pass_file is not None])
                     submitted = st.form_submit_button("Subir certificados")
+                    
+                    
                 if submitted:
                     try:
                         files = {
@@ -784,7 +804,8 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                                     updates["grupo_id"] = ObjectId(gid)
                                 db.clientes.update_one({"_id": doc["_id"]}, {"$set": updates})
                             st.success("Certificados subidos")
-                            doc = db.clientes.find_one({"rfc": rfc})
+                            
+                            
                             db.uploads.insert_one({
                                 "rfc": rfc,
                                 "uploader_username": st.session_state.username,
@@ -794,6 +815,7 @@ Al aceptar, usted **reconoce y consiente** el tratamiento descrito.
                                 "status_code": resp.status_code,
                                 "created_at": datetime.utcnow(),
                             })
+                            st.rerun()
                     except requests.exceptions.RequestException as e:
                         st.error(f"Fallo al llamar al backend: {e}")
         else:
