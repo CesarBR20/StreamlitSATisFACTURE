@@ -461,10 +461,24 @@ def view_app():
                                     st.json(v_data, expanded=False)
 
                             else:
+                                # --- Mostrar JSON completo primero ---
+                                st.success("Verificación completada")
+                                
+                                with st.expander("Ver JSON de respuesta completo", expanded=False):
+                                    st.json(v_data, expanded=True)
+                                
                                 # --- Procesar respuesta exitosa ---
                                 items = []
                                 if isinstance(v_data, dict):
-                                    if isinstance(v_data.get("detalle"), list):
+                                    # Buscar en diferentes estructuras posibles
+                                    resultados = v_data.get("resultados")
+                                    
+                                    if isinstance(resultados, list):
+                                        items = resultados
+                                    elif isinstance(resultados, dict):
+                                        # Si es un dict con índices numéricos, convertir a lista
+                                        items = list(resultados.values())
+                                    elif isinstance(v_data.get("detalle"), list):
                                         items = v_data["detalle"]
                                     elif isinstance(v_data.get("solicitudes"), list):
                                         items = v_data["solicitudes"]
@@ -474,35 +488,58 @@ def view_app():
                                 if not items:
                                     st.info("Sin resultados para el año seleccionado.")
                                 else:
+                                    st.markdown("### Resumen de solicitudes")
+                                    
+                                    # Crear tabla de datos
                                     from collections import Counter
+                                    table_rows = []
                                     estados = []
-                                    box = st.container()
+                                    
                                     for idx, it in enumerate(items, 1):
                                         idsol = it.get("id_solicitud") or it.get("idSolicitud") or it.get("id")
                                         estado = it.get("estado") or it.get("status") or it.get("EstadoSolicitud")
                                         estados.append(str(estado))
+                                        codigo_estatus = it.get("codigo_estatus") or it.get("CodigoEstatus")
+                                        mensaje = it.get("mensaje") or it.get("MensajeEstatus")
+                                        numero_cfdis = it.get("numero_cfdis") or it.get("NumeroCFDIs")
+                                        
                                         paquetes = it.get("paquetes") or it.get("ids_paquetes") or it.get("IdsPaquetes")
                                         npaq = len(paquetes) if isinstance(paquetes, (list, tuple)) else (
                                             paquetes if isinstance(paquetes, int) else None
                                         )
-                                        periodo = (
-                                            it.get("periodo")
-                                            or (
-                                                f'{it.get("fecha_inicio","")} → {it.get("fecha_fin","")}'
-                                                if it.get("fecha_inicio") or it.get("fecha_fin")
-                                                else None
-                                            )
-                                        )
-                                        line = f"**{idx}.** `{idsol or '—'}` • Estado: **{estado}**"
-                                        if npaq is not None:
-                                            line += f" • Paquetes: **{npaq}**"
-                                        if periodo:
-                                            line += f" • {periodo}"
-                                        box.markdown(line)
-
-                                    counts = Counter(estados)
+                                        
+                                        table_rows.append({
+                                            "#": idx,
+                                            "ID Solicitud": idsol or "—",
+                                            "Estado": estado or "—",
+                                            "Código": codigo_estatus or "—",
+                                            "Mensaje": mensaje or "—",
+                                            "Número CFDIs": numero_cfdis or "—",
+                                            "Paquetes": npaq if npaq is not None else "—",
+                                        })
+                                    
+                                    # Mostrar tabla
+                                    st.dataframe(
+                                        table_rows, 
+                                        use_container_width=True, 
+                                        hide_index=True,
+                                        column_config={
+                                            "#": st.column_config.NumberColumn(width="small"),
+                                            "ID Solicitud": st.column_config.TextColumn(width="medium"),
+                                            "Estado": st.column_config.TextColumn(width="small"),
+                                            "Código": st.column_config.TextColumn(width="small"),
+                                            "Mensaje": st.column_config.TextColumn(width="medium"),
+                                            "Número CFDIs": st.column_config.TextColumn(width="small"),
+                                            "Paquetes": st.column_config.TextColumn(width="small"),
+                                            "Periodo": st.column_config.TextColumn(width="medium")
+                                        }
+                                    )
+                                    
+                                    # Estadísticas
                                     st.markdown("---")
-                                    st.write({"total": len(items), "por_estado": dict(counts)})
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.metric("Total de solicitudes", len(items))
 
                     except requests.exceptions.RequestException as e:
                         st.error(f"Fallo al verificar solicitudes: {e}")
