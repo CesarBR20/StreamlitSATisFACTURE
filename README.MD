@@ -706,7 +706,7 @@ MONGODB_DB = "sat_cfdi"
 5. **Sin historial:** No se puede volver atrás sin perder estado
 
 ## Roadmap
-
+### Cambiar a REACT/NEST para algo mas profesional
 ### Corto Plazo (1-2 meses)
 
 - [ ] Implementar confirmaciones para operaciones destructivas
@@ -780,4 +780,5 @@ Esta aplicación es una **demo interna** y no está diseñada para producción a
 
 
 *Última actualización: Noviembre 2025*
+
 
