@@ -186,7 +186,7 @@ Contraseña: admin123
 Rol: admin
 ```
 
-**⚠️ IMPORTANTE:** Cambiar credenciales en producción.
+**IMPORTANTE:** Cambiar credenciales en producción.
 
 #### Proceso de Login
 
@@ -780,3 +780,4 @@ Esta aplicación es una **demo interna** y no está diseñada para producción a
 
 
 *Última actualización: Noviembre 2025*
+
