@@ -20,19 +20,19 @@ Este frontend sirve como **interfaz de pruebas interna** para validar el flujo c
 
 ### Para Administradores
 
-- ✅ **Gestión de grupos:** Crear, modificar y eliminar grupos de empresas
-- ✅ **Gestión de clientes:** Asignar RFCs a grupos, administrar certificados FIEL
-- ✅ **Gestión de usuarios:** Crear usuarios con roles (admin/cliente) y asignarlos a grupos
-- ✅ **Solicitudes SAT:** Ejecutar solicitudes iniciales automáticas para múltiples años
-- ✅ **Verificación masiva:** Verificar estado de solicitudes por año
-- ✅ **Visualización de datos:** Consultar CFDI y metadata por cliente y año
+- **Gestión de grupos:** Crear, modificar y eliminar grupos de empresas
+- **Gestión de clientes:** Asignar RFCs a grupos, administrar certificados FIEL
+- **Gestión de usuarios:** Crear usuarios con roles (admin/cliente) y asignarlos a grupos
+- **Solicitudes SAT:** Ejecutar solicitudes iniciales automáticas para múltiples años
+- **Verificación masiva:** Verificar estado de solicitudes por año
+- **Visualización de datos:** Consultar CFDI y metadata por cliente y año
 
 ### Para Clientes
 
-- ✅ **Consentimiento informado:** Aceptación de términos y condiciones para uso de FIEL
-- ✅ **Subida de certificados:** Upload de archivos .cer, .key y password.txt
-- ✅ **Historial de certificados:** Ver certificados subidos por el grupo
-- ✅ **Validación automática:** Verificación de archivos antes de enviar al backend
+- **Consentimiento informado:** Aceptación de términos y condiciones para uso de FIEL
+- **Subida de certificados:** Upload de archivos .cer, .key y password.txt
+- **Historial de certificados:** Ver certificados subidos por el grupo
+- **Validación automática:** Verificación de archivos antes de enviar al backend
 
 ## Stack Tecnológico
 
@@ -289,7 +289,7 @@ Rol: admin
 - Total: 28 solicitudes por año
 - También genera solicitudes para año-1 y primeros 3 meses de año+1
 
-**⏱️ Tiempo de ejecución:** ~10 minutos
+**Tiempo de ejecución:** ~10 minutos
 
 La interfaz usa `ThreadPoolExecutor` para no bloquear la UI durante la espera.
 
@@ -406,30 +406,30 @@ view_app()         # Renderizar aplicación principal
 
 ### Implementado
 
-- ✅ **Hashing de contraseñas:** bcrypt con salt automático
-- ✅ **Autenticación de sesión:** Estado guardado en `session_state`
-- ✅ **Roles y permisos:** Admin vs Cliente con vistas diferenciadas
-- ✅ **Validación de archivos:** Nombres y tipos de archivo
-- ✅ **Consentimiento informado:** Aceptación explícita para clientes
-- ✅ **Logging de operaciones:** Registro de uploads en BD
+- **Hashing de contraseñas:** bcrypt con salt automático
+- **Autenticación de sesión:** Estado guardado en `session_state`
+- **Roles y permisos:** Admin vs Cliente con vistas diferenciadas
+- **Validación de archivos:** Nombres y tipos de archivo
+- **Consentimiento informado:** Aceptación explícita para clientes
+- **Logging de operaciones:** Registro de uploads en BD
 
 ### Limitaciones Conocidas
 
-- ⚠️ No hay JWT - autenticación solo vive en sesión de Streamlit
-- ⚠️ Conexión directa a MongoDB - no hay capa de API para datos
-- ⚠️ Credenciales de admin hardcodeadas en código
-- ⚠️ Sin rate limiting para prevenir abuso
-- ⚠️ Sin 2FA para usuarios admin
+- No hay JWT - autenticación solo vive en sesión de Streamlit
+- Conexión directa a MongoDB - no hay capa de API para datos
+- Credenciales de admin hardcodeadas en código
+- Sin rate limiting para prevenir abuso
+- Sin 2FA para usuarios admin
 
 ### Mejoras de Seguridad (Roadmap)
 
-- 🔲 Implementar JWT para autenticación persistente
-- 🔲 Mover acceso a MongoDB detrás de API
-- 🔲 Sistema de gestión de credenciales de admin
-- 🔲 2FA para usuarios admin
-- 🔲 Logs de auditoría para operaciones sensibles
-- 🔲 Rate limiting por usuario
-- 🔲 Timeout de sesión automático
+- Implementar JWT para autenticación persistente
+- Mover acceso a MongoDB detrás de API
+- Sistema de gestión de credenciales de admin
+- 2FA para usuarios admin
+- Logs de auditoría para operaciones sensibles
+- Rate limiting por usuario
+- Timeout de sesión automático
 
 ## Integración con Backend
 
@@ -490,7 +490,7 @@ POST /ejecutar-solicitudes-iniciales/
 }
 ```
 
-**⚠️ Timeout:** Este endpoint puede tardar ~10 minutos. El frontend usa `timeout=None`.
+**Timeout:** Este endpoint puede tardar ~10 minutos. El frontend usa `timeout=None`.
 
 #### 4. Verificar Solicitudes
 
@@ -750,7 +750,7 @@ Para reportar bugs o solicitar funcionalidades:
 
 ## Notas Importantes
 
-### ⚠️ Solo para Desarrollo
+### Solo para Desarrollo
 
 Esta aplicación es una **demo interna** y no está diseñada para producción a gran escala. Para uso en producción, se recomienda:
 
@@ -760,14 +760,14 @@ Esta aplicación es una **demo interna** y no está diseñada para producción a
 4. Implementar logging y monitoreo profesional
 5. Agregar tests automatizados
 
-### 🔒 Seguridad
+### Seguridad
 
 - No usar en producción sin cambiar credenciales de admin
 - No exponer a internet público sin autenticación adicional
 - Considerar implementar rate limiting
 - Auditar logs de acceso regularmente
 
-### 📊 Performance
+### Performance
 
 - Optimizar consultas a MongoDB con índices apropiados
 - Implementar caché para datos que no cambian frecuentemente
@@ -778,4 +778,5 @@ Esta aplicación es una **demo interna** y no está diseñada para producción a
 
 **SATisFacture Frontend** - Demo interactiva para gestión fiscal automatizada 🇲🇽
 
-*Última actualización: Noviembre 2024*
+
+*Última actualización: Noviembre 2025*
